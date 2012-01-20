@@ -104,6 +104,11 @@ do
 	local tooltip
 	local LDB_anchor
 
+	local function Tooltip_OnRelease(self)
+		tooltip = nil
+		LDB_anchor = nil
+	end
+
 	local function ToggleExpandedState(tooltip_cell, realm_and_character)
 		local realm, character_name = (":"):split(realm_and_character, 2)
 
@@ -111,7 +116,7 @@ do
 		DrawTooltip(LDB_anchor)
 	end
 
-	 function DrawTooltip(anchor_frame)
+	function DrawTooltip(anchor_frame)
 		if not anchor_frame then
 			return
 		end
@@ -119,14 +124,15 @@ do
 
 		if not tooltip then
 			tooltip = QTip:Acquire(ADDON_NAME .. "Tooltip", NUM_TOOLTIP_COLUMNS, "LEFT", "CENTER", "CENTER", "CENTER", "CENTER", "CENTER", "CENTER")
+			tooltip.OnRelease = Tooltip_OnRelease
 			tooltip:EnableMouse(true)
-			tooltip:SetScale(db.tooltip.scale)
 		end
 		local now = _G.time()
 
 		tooltip:Clear()
 		tooltip:SmartAnchorTo(anchor_frame)
 		tooltip:SetAutoHideDelay(db.tooltip.timer, anchor_frame)
+		tooltip:SetScale(db.tooltip.scale)
 
 		local line, column = tooltip:AddHeader()
 		tooltip:SetCell(line, 1, ADDON_NAME, "CENTER", NUM_TOOLTIP_COLUMNS)
