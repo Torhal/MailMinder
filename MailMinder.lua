@@ -139,7 +139,8 @@ do
 		tooltip:SetCell(line, 1, ADDON_NAME, "CENTER", NUM_TOOLTIP_COLUMNS)
 		tooltip:AddSeparator()
 
-		tooltip:AddLine(" ", _G.NAME, _G.CLOSES_IN, _G.MAIL_LABEL, _G.AUCTIONS)
+		line = tooltip:AddLine(" ", _G.NAME, _G.CLOSES_IN, _G.MAIL_LABEL, _G.AUCTIONS)
+		tooltip:SetLineColor(line, 1, 1, 1, 0.25)
 		tooltip:AddSeparator()
 
 		for realm, character_info in pairs(db.characters) do
@@ -148,7 +149,7 @@ do
 					local class_color = data.class and CLASS_COLORS[data.class] or "cccccc"
 					local expiration_seconds = data.next_expiration - (now - data.last_update)
 
-					line, column = tooltip:AddLine()
+					line = tooltip:AddLine()
 					tooltip:SetCell(line, 1, data.expanded and ICON_MINUS or ICON_PLUS)
 					tooltip:SetCell(line, 2, ("|cff%s%s|r"):format(class_color, character_name))
 
@@ -164,6 +165,7 @@ do
 					if data.expanded then
 						tooltip:AddSeparator()
 						line = tooltip:AddLine(" ")
+						tooltip:SetLineColor(line, 1, 1, 1, 0.25)
 						tooltip:SetCell(line, 2, _G.MAIL_SUBJECT_LABEL, "CENTER", 4)
 						tooltip:SetCell(line, 6, _G.FROM)
 						tooltip:SetCell(line, 7, _G.CLOSES_IN)
