@@ -271,6 +271,9 @@ function MailMinder:MAIL_INBOX_UPDATE()
 end
 
 function MailMinder:MAIL_SEND_SUCCESS()
+	if not current_mail.recipient then
+		return
+	end
 	local mail_expiration_seconds = math.floor((current_mail.is_cod and 4 or 31) * SECONDS_PER_DAY)
 	local now = _G.time()
 	local character_data = db.characters[REALM_NAME][current_mail.recipient]
