@@ -34,6 +34,7 @@ local ldb_object = LDB:NewDataObject(ADDON_NAME, {
 local PLAYER_NAME = _G.UnitName("player")
 local REALM_NAME = _G.GetRealmName()
 local SECONDS_PER_DAY = 24 * 60 * 60
+local SECONDS_PER_HOUR = 60 * 60
 
 local COLOR_TABLE = _G.CUSTOM_CLASS_COLORS or _G.RAID_CLASS_COLORS
 local CLASS_COLORS = {}
@@ -86,12 +87,12 @@ local function FormattedSeconds(seconds)
 	end
 	local L_DAY_ONELETTER_ABBR = _G.DAY_ONELETTER_ABBR:gsub("%s*%%d%s*", "")
 
-	if not seconds or seconds >= 86400 * 36500 then -- 100 years
-		return ("|cffffffff%s**|r%s |cffffffff**|r:|cffffffff**|r"):format(negative, L_DAY_ONELETTER_ABBR)
-	elseif seconds >= 86400 then
-		return ("|cffffffff%s%d|r%s |cffffffff%d|r:|cffffffff%02d|r"):format(negative, seconds / 86400, L_DAY_ONELETTER_ABBR, math.fmod(seconds / 3600, 24), math.fmod(seconds / 60, 60))
+	if not seconds or seconds >= SECONDS_PER_DAY * 36500 then -- 100 years
+		return ("%s**%s **:**"):format(negative, L_DAY_ONELETTER_ABBR)
+	elseif seconds >= SECONDS_PER_DAY then
+		return ("%s%d%s %d:%02d"):format(negative, seconds / SECONDS_PER_DAY, L_DAY_ONELETTER_ABBR, math.fmod(seconds / SECONDS_PER_HOUR, 24), math.fmod(seconds / 60, 60))
 	else
-		return ("|cffffffff%s%d|r:|cffffffff%02d|r"):format(negative, seconds / 3600, math.fmod(seconds / 60, 60))
+		return ("%s%d:%02d"):format(negative, seconds / SECONDS_PER_HOUR, math.fmod(seconds / 60, 60))
 	end
 end
 
@@ -145,11 +146,17 @@ do
 			for character_name, data in pairs(character_info) do
 				if #data.mail_entries > 0 then
 					local class_color = data.class and CLASS_COLORS[data.class] or "cccccc"
+					local expiration_seconds = data.next_expiration - (now - data.last_update)
 
 					line, column = tooltip:AddLine()
 					tooltip:SetCell(line, 1, data.expanded and ICON_MINUS or ICON_PLUS)
 					tooltip:SetCell(line, 2, ("|cff%s%s|r"):format(class_color, character_name))
-					tooltip:SetCell(line, 3, FormattedSeconds(data.next_expiration - (now - data.last_update)))
+
+					if expiration_seconds / SECONDS_PER_DAY >= 1 then
+						tooltip:SetCell(line, 3, ("%s%s|r"):format(_G.GREEN_FONT_COLOR_CODE, FormattedSeconds(expiration_seconds)))
+					else
+						tooltip:SetCell(line, 3, ("%s%s|r"):format(_G.RED_FONT_COLOR_CODE, FormattedSeconds(expiration_seconds)))
+					end
 					tooltip:SetCell(line, 4, data.mail_count)
 					tooltip:SetCell(line, 5, data.auction_count)
 					tooltip:SetCellScript(line, 1, "OnMouseUp", ToggleExpandedState, ("%s:%s"):format(realm, character_name))
@@ -164,10 +171,16 @@ do
 
 						for index = 1, #data.mail_entries do
 							local mail = data.mail_entries[index]
+							local expiration_seconds = mail.expiration_seconds - (now - data.last_update)
 							line = tooltip:AddLine(" ")
-							tooltip:SetCell(line, 2, ("|T%s:16:16|t %s"):format(mail.package_icon or mail.stationary_icon, mail.subject), "LEFT", 4)
+							tooltip:SetCell(line, 2, ("|T%s:16:16|t %s%s|r"):format(mail.package_icon or mail.stationary_icon, _G.NORMAL_FONT_COLOR_CODE, mail.subject), "LEFT", 4)
 							tooltip:SetCell(line, 6, mail.sender_name)
-							tooltip:SetCell(line, 7, FormattedSeconds(mail.expiration_seconds - (now - data.last_update)))
+
+							if expiration_seconds / SECONDS_PER_DAY >= 1 then
+								tooltip:SetCell(line, 7, ("%s%s|r"):format(_G.GREEN_FONT_COLOR_CODE, FormattedSeconds(expiration_seconds)))
+							else
+								tooltip:SetCell(line, 7, ("%s%s|r"):format(_G.RED_FONT_COLOR_CODE, FormattedSeconds(expiration_seconds)))
+							end
 						end
 						tooltip:AddSeparator()
 					end
