@@ -332,7 +332,7 @@ end
 
 function MailMinder:OnEnable()
 	_G.hooksecurefunc("SendMail", function(recipient, subject, body)
-		if not db.characters[REALM_NAME][recipient] then
+		if not recipient or not db.characters[REALM_NAME][recipient] then
 			return
 		end
 		current_mail.recipient = recipient
