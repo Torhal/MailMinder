@@ -127,13 +127,15 @@ do
 			tooltip = QTip:Acquire(ADDON_NAME .. "Tooltip", NUM_TOOLTIP_COLUMNS, "LEFT", "CENTER", "CENTER", "CENTER", "CENTER", "CENTER", "CENTER")
 			tooltip.OnRelease = Tooltip_OnRelease
 			tooltip:EnableMouse(true)
+			tooltip:SmartAnchorTo(anchor_frame)
+			tooltip:SetAutoHideDelay(db.tooltip.timer, anchor_frame)
+			tooltip:SetScale(db.tooltip.scale)
 		end
 		local now = _G.time()
 
 		tooltip:Clear()
-		tooltip:SmartAnchorTo(anchor_frame)
-		tooltip:SetAutoHideDelay(db.tooltip.timer, anchor_frame)
-		tooltip:SetScale(db.tooltip.scale)
+		tooltip:SetCellMarginH(0)
+		tooltip:SetCellMarginV(1)
 
 		local line, column = tooltip:AddHeader()
 		tooltip:SetCell(line, 1, ADDON_NAME, "CENTER", NUM_TOOLTIP_COLUMNS)
