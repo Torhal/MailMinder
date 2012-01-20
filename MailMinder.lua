@@ -84,13 +84,15 @@ local function UpdateIcon()
 
 	for realm, character_info in pairs(db.characters) do
 		for character_name, character_data in pairs(character_info) do
-			local expiration_seconds = character_data.next_expiration - (now - character_data.last_update)
+			if character_data.next_expiration and character_data.last_update then
+				local expiration_seconds = character_data.next_expiration - (now - character_data.last_update)
 
-			if expiration_seconds / SECONDS_PER_DAY < 1 then
-				ldb_object.iconR = _G.RED_FONT_COLOR.r
-				ldb_object.iconG = _G.RED_FONT_COLOR.g
-				ldb_object.iconB = _G.RED_FONT_COLOR.b
-				return
+				if expiration_seconds / SECONDS_PER_DAY < 1 then
+					ldb_object.iconR = _G.RED_FONT_COLOR.r
+					ldb_object.iconG = _G.RED_FONT_COLOR.g
+					ldb_object.iconB = _G.RED_FONT_COLOR.b
+					return
+				end
 			end
 		end
 	end
