@@ -1,0 +1,20 @@
+## Interface: 40300
+## Title: MailMinder
+## Notes: Records mail when visiting the mailbox to make keeping track of mail and expiration dates easy.
+## Author: Torhal
+## Version: @project-version@
+## X-Date: @project-date-iso@
+## X-Email: jcallahan@curse.com
+## X-Category: Mail, Plugins: Data Broker
+## OptionalDeps: Ace3, LibQTip-1.0, LibDBIcon-1.0
+## SavedVariables: MailMinderDB
+
+## LoadManagers: AddonLoader
+## X-LoadOn-Always: Delayed
+
+#@no-lib-strip@
+embeds.xml
+#@end-no-lib-strip@
+
+locale.xml
+MailMinder.lua
