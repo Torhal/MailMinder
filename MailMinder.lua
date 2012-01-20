@@ -14,7 +14,7 @@ local pairs = _G.pairs
 -------------------------------------------------------------------------------
 local ADDON_NAME, private = ...
 local LibStub = _G.LibStub
-local MailMinder = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0")
+local MailMinder = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceTimer-3.0")
 
 local QTip = LibStub("LibQTip-1.0")
 local LDB = LibStub("LibDataBroker-1.1")
@@ -70,14 +70,35 @@ local ICON_PLUS_DOWN = [[|TInterface\MINIMAP\UI-Minimap-ZoomInButton-Down:16:16|
 -------------------------------------------------------------------------------
 -- Variables.
 -------------------------------------------------------------------------------
-local characters = {}
-local sorted_characters = {}
-local current_mail = {}
 local db
+local characters = {}
+local current_mail = {}
+local sorted_characters = {}
+local timers = {}
 
 -------------------------------------------------------------------------------
 -- Helper functions.
 -------------------------------------------------------------------------------
+local function UpdateIcon()
+	local now = _G.time()
+
+	for realm, character_info in pairs(db.characters) do
+		for character_name, character_data in pairs(character_info) do
+			local expiration_seconds = character_data.next_expiration - (now - character_data.last_update)
+
+			if expiration_seconds / SECONDS_PER_DAY < 1 then
+				ldb_object.iconR = _G.RED_FONT_COLOR.r
+				ldb_object.iconG = _G.RED_FONT_COLOR.g
+				ldb_object.iconB = _G.RED_FONT_COLOR.b
+				return
+			end
+		end
+	end
+	ldb_object.iconR = _G.GREEN_FONT_COLOR.r
+	ldb_object.iconG = _G.GREEN_FONT_COLOR.g
+	ldb_object.iconB = _G.GREEN_FONT_COLOR.b
+end
+
 local function FormattedSeconds(seconds)
 	local negative = ""
 
@@ -268,6 +289,8 @@ function MailMinder:MAIL_INBOX_UPDATE()
 	player_data.sales_count = sales_count
 	player_data.auction_count = auction_count
 	player_data.next_expiration = math.floor(remaining_days * SECONDS_PER_DAY)
+
+	UpdateIcon()
 end
 
 function MailMinder:MAIL_SEND_SUCCESS()
@@ -346,6 +369,8 @@ function MailMinder:OnEnable()
 	if LDBIcon then
 		LDBIcon:Register(ADDON_NAME, ldb_object, db.datafeed.minimap_icon)
 	end
+	UpdateIcon()
+	timers.icon_update = self:ScheduleRepeatingTimer(UpdateIcon, 60)
 
 	self:RegisterEvent("MAIL_INBOX_UPDATE")
 	self:RegisterEvent("MAIL_SEND_SUCCESS")
