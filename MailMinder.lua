@@ -60,8 +60,12 @@ local DB_DEFAULTS = {
 }
 
 local DEFAULT_STATIONARY = [[Interface\Icons\INV_Scroll_03]]
+
 local ICON_MINUS = [[|TInterface\MINIMAP\UI-Minimap-ZoomOutButton-Up:16:16|t]]
+local ICON_MINUS_DOWN = [[|TInterface\MINIMAP\UI-Minimap-ZoomOutButton-Down:16:16|t]]
+
 local ICON_PLUS = [[|TInterface\MINIMAP\UI-Minimap-ZoomInButton-Up:16:16|t]]
+local ICON_PLUS_DOWN = [[|TInterface\MINIMAP\UI-Minimap-ZoomInButton-Down:16:16|t]]
 
 -------------------------------------------------------------------------------
 -- Variables.
@@ -110,11 +114,16 @@ do
 		LDB_anchor = nil
 	end
 
-	local function ToggleExpandedState(tooltip_cell, realm_and_character)
+	local function ExpandButton_OnMouseUp(tooltip_cell, realm_and_character)
 		local realm, character_name = (":"):split(realm_and_character, 2)
 
 		db.characters[realm][character_name].expanded = not db.characters[realm][character_name].expanded
 		DrawTooltip(LDB_anchor)
+	end
+
+	local function ExpandButton_OnMouseDown(tooltip_cell, is_expanded)
+		local line, column = tooltip_cell:GetPosition()
+		tooltip:SetCell(line, column, is_expanded and ICON_MINUS_DOWN or ICON_PLUS_DOWN)
 	end
 
 	function DrawTooltip(anchor_frame)
@@ -162,7 +171,8 @@ do
 					end
 					tooltip:SetCell(line, 4, data.mail_count)
 					tooltip:SetCell(line, 5, data.auction_count)
-					tooltip:SetCellScript(line, 1, "OnMouseUp", ToggleExpandedState, ("%s:%s"):format(realm, character_name))
+					tooltip:SetCellScript(line, 1, "OnMouseUp", ExpandButton_OnMouseUp, ("%s:%s"):format(realm, character_name))
+					tooltip:SetCellScript(line, 1, "OnMouseDown", ExpandButton_OnMouseDown, data.expanded)
 
 					if data.expanded then
 						tooltip:AddSeparator()
