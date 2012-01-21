@@ -81,24 +81,31 @@ local timers = {}
 -------------------------------------------------------------------------------
 local function UpdateIcon()
 	local now = _G.time()
+	local found_mail
 
 	for realm, character_info in pairs(db.characters) do
 		for character_name, character_data in pairs(character_info) do
-			if character_data.next_expiration and character_data.last_update then
-				local expiration_seconds = character_data.next_expiration - (now - character_data.last_update)
-
-				if expiration_seconds / SECONDS_PER_DAY < 1 then
+			if #character_data.mail_entries > 0 then
+				if character_data.next_expiration - (now - character_data.last_update) / SECONDS_PER_DAY < 1 then
 					ldb_object.iconR = _G.RED_FONT_COLOR.r
 					ldb_object.iconG = _G.RED_FONT_COLOR.g
 					ldb_object.iconB = _G.RED_FONT_COLOR.b
 					return
 				end
+				found_mail = true
 			end
 		end
 	end
-	ldb_object.iconR = _G.GREEN_FONT_COLOR.r
-	ldb_object.iconG = _G.GREEN_FONT_COLOR.g
-	ldb_object.iconB = _G.GREEN_FONT_COLOR.b
+
+	if found_mail then
+		ldb_object.iconR = _G.GREEN_FONT_COLOR.r
+		ldb_object.iconG = _G.GREEN_FONT_COLOR.g
+		ldb_object.iconB = _G.GREEN_FONT_COLOR.b
+	else
+		ldb_object.iconR = nil
+		ldb_object.iconG = nil
+		ldb_object.iconB = nil
+	end
 end
 
 local function FormattedSeconds(seconds)
