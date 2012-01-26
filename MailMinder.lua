@@ -82,25 +82,42 @@ local timers = {}
 local function UpdateIcon()
 	local now = _G.time()
 	local found_mail
+	local closest_time
 
 	for realm, character_info in pairs(db.characters) do
 		for character_name, character_data in pairs(character_info) do
 			if #character_data.mail_entries > 0 then
-				if character_data.next_expiration - (now - character_data.last_update) / SECONDS_PER_DAY < 1 then
-					ldb_object.iconR = _G.RED_FONT_COLOR.r
-					ldb_object.iconG = _G.RED_FONT_COLOR.g
-					ldb_object.iconB = _G.RED_FONT_COLOR.b
-					return
-				end
 				found_mail = true
+
+				local current_expiration = character_data.next_expiration - (now - character_data.last_update)
+
+				if not closest_time or current_expiration < closest_time then
+					closest_time = current_expiration
+				end
 			end
 		end
 	end
 
 	if found_mail then
-		ldb_object.iconR = _G.GREEN_FONT_COLOR.r
-		ldb_object.iconG = _G.GREEN_FONT_COLOR.g
-		ldb_object.iconB = _G.GREEN_FONT_COLOR.b
+		local days_left = closest_time / SECONDS_PER_DAY
+
+		if days_left > 15 then
+			ldb_object.iconR = _G.GREEN_FONT_COLOR.r
+			ldb_object.iconG = _G.GREEN_FONT_COLOR.g
+			ldb_object.iconB = _G.GREEN_FONT_COLOR.b
+		elseif days_left > 3 then
+			ldb_object.iconR = _G.YELLOW_FONT_COLOR.r
+			ldb_object.iconG = _G.YELLOW_FONT_COLOR.g
+			ldb_object.iconB = _G.YELLOW_FONT_COLOR.b
+		elseif days_left > 1 then
+			ldb_object.iconR = _G.ORANGE_FONT_COLOR.r
+			ldb_object.iconG = _G.ORANGE_FONT_COLOR.g
+			ldb_object.iconB = _G.ORANGE_FONT_COLOR.b
+		else
+			ldb_object.iconR = _G.RED_FONT_COLOR.r
+			ldb_object.iconG = _G.RED_FONT_COLOR.g
+			ldb_object.iconB = _G.RED_FONT_COLOR.b
+		end
 	else
 		ldb_object.iconR = nil
 		ldb_object.iconG = nil
@@ -156,6 +173,18 @@ do
 		tooltip:SetCell(line, column, is_expanded and ICON_MINUS_DOWN or ICON_PLUS_DOWN)
 	end
 
+	local function DayColorCode(days_left)
+		if days_left > 15 then
+			return _G.GREEN_FONT_COLOR_CODE
+		elseif days_left > 3 then
+			return _G.YELLOW_FONT_COLOR_CODE
+		elseif days_left > 1 then
+			return _G.ORANGE_FONT_COLOR_CODE
+		else
+			return _G.RED_FONT_COLOR_CODE
+		end
+	end
+
 	function DrawTooltip(anchor_frame)
 		if not anchor_frame then
 			return
@@ -189,16 +218,12 @@ do
 				if #data.mail_entries > 0 then
 					local class_color = data.class and CLASS_COLORS[data.class] or "cccccc"
 					local expiration_seconds = data.next_expiration - (now - data.last_update)
+					local days_left = expiration_seconds / SECONDS_PER_DAY
 
 					line = tooltip:AddLine()
 					tooltip:SetCell(line, 1, data.expanded and ICON_MINUS or ICON_PLUS)
 					tooltip:SetCell(line, 2, ("|cff%s%s|r"):format(class_color, character_name))
-
-					if expiration_seconds / SECONDS_PER_DAY >= 1 then
-						tooltip:SetCell(line, 3, ("%s%s|r"):format(_G.GREEN_FONT_COLOR_CODE, FormattedSeconds(expiration_seconds)))
-					else
-						tooltip:SetCell(line, 3, ("%s%s|r"):format(_G.RED_FONT_COLOR_CODE, FormattedSeconds(expiration_seconds)))
-					end
+					tooltip:SetCell(line, 3, ("%s%s|r"):format(DayColorCode(days_left), FormattedSeconds(expiration_seconds)))
 					tooltip:SetCell(line, 4, data.mail_count)
 					tooltip:SetCell(line, 5, data.auction_count)
 					tooltip:SetCellScript(line, 1, "OnMouseUp", ExpandButton_OnMouseUp, ("%s:%s"):format(realm, character_name))
@@ -216,15 +241,12 @@ do
 						for index = 1, #data.mail_entries do
 							local mail = data.mail_entries[index]
 							local expiration_seconds = mail.expiration_seconds - (now - data.last_update)
+							local days_left = expiration_seconds / SECONDS_PER_DAY
+
 							line = tooltip:AddLine(" ")
 							tooltip:SetCell(line, 2, ("|T%s:16:16|t %s%s|r"):format(mail.package_icon or mail.stationary_icon, _G.NORMAL_FONT_COLOR_CODE, mail.subject), "LEFT", 4)
 							tooltip:SetCell(line, 6, mail.sender_name)
-
-							if expiration_seconds / SECONDS_PER_DAY >= 1 then
-								tooltip:SetCell(line, 7, ("%s%s|r"):format(_G.GREEN_FONT_COLOR_CODE, FormattedSeconds(expiration_seconds)))
-							else
-								tooltip:SetCell(line, 7, ("%s%s|r"):format(_G.RED_FONT_COLOR_CODE, FormattedSeconds(expiration_seconds)))
-							end
+							tooltip:SetCell(line, 7, ("%s%s|r"):format(DayColorCode(days_left), FormattedSeconds(expiration_seconds)))
 						end
 						tooltip:AddSeparator()
 					end
