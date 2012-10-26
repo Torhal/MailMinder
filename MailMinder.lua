@@ -33,6 +33,7 @@ local ldb_object = LDB:NewDataObject(ADDON_NAME, {
 -------------------------------------------------------------------------------
 local PLAYER_NAME = _G.UnitName("player")
 local REALM_NAME = _G.GetRealmName()
+local MAX_MAIL_DAYS = 30
 local SECONDS_PER_DAY = 24 * 60 * 60
 local SECONDS_PER_HOUR = 60 * 60
 
@@ -79,6 +80,25 @@ local timers = {}
 -------------------------------------------------------------------------------
 -- Helper functions.
 -------------------------------------------------------------------------------
+local function PercentColorGradient(min, max)
+	local red_low, green_low, blue_low = 1, 0.10, 0.10
+	local red_mid, green_mid, blue_mid = 1, 1, 0
+	local red_high, green_high, blue_high = 0.25, 0.75, 0.25
+	local percentage = min / max
+
+	if percentage >= 1 then
+		return red_high, green_high, blue_high
+	elseif percentage <= 0 then
+		return red_low, green_low, blue_low
+	end
+	local integral, fractional = math.modf(percentage * 2)
+
+	if integral == 1 then
+		red_low, green_low, blue_low, red_mid, green_mid, blue_mid = red_mid, green_mid, blue_mid, red_high, green_high, blue_high
+	end
+	return red_low + (red_mid - red_low) * fractional, green_low + (green_mid - green_low) * fractional, blue_low + (blue_mid - blue_low) * fractional
+end
+
 local function UpdateIcon()
 	local now = _G.time()
 	local found_mail
@@ -99,25 +119,7 @@ local function UpdateIcon()
 	end
 
 	if found_mail then
-		local days_left = closest_time / SECONDS_PER_DAY
-
-		if days_left > 15 then
-			ldb_object.iconR = _G.GREEN_FONT_COLOR.r
-			ldb_object.iconG = _G.GREEN_FONT_COLOR.g
-			ldb_object.iconB = _G.GREEN_FONT_COLOR.b
-		elseif days_left > 3 then
-			ldb_object.iconR = _G.YELLOW_FONT_COLOR.r
-			ldb_object.iconG = _G.YELLOW_FONT_COLOR.g
-			ldb_object.iconB = _G.YELLOW_FONT_COLOR.b
-		elseif days_left > 1 then
-			ldb_object.iconR = _G.ORANGE_FONT_COLOR.r
-			ldb_object.iconG = _G.ORANGE_FONT_COLOR.g
-			ldb_object.iconB = _G.ORANGE_FONT_COLOR.b
-		else
-			ldb_object.iconR = _G.RED_FONT_COLOR.r
-			ldb_object.iconG = _G.RED_FONT_COLOR.g
-			ldb_object.iconB = _G.RED_FONT_COLOR.b
-		end
+		ldb_object.iconR, ldb_object.iconG, ldb_object.iconB = PercentColorGradient(closest_time / SECONDS_PER_DAY, MAX_MAIL_DAYS)
 	else
 		ldb_object.iconR = nil
 		ldb_object.iconG = nil
@@ -174,15 +176,8 @@ do
 	end
 
 	local function DayColorCode(days_left)
-		if days_left > 15 then
-			return _G.GREEN_FONT_COLOR_CODE
-		elseif days_left > 3 then
-			return _G.YELLOW_FONT_COLOR_CODE
-		elseif days_left > 1 then
-			return _G.ORANGE_FONT_COLOR_CODE
-		else
-			return _G.RED_FONT_COLOR_CODE
-		end
+		local r, g, b = PercentColorGradient(days_left, MAX_MAIL_DAYS)
+		return ("|cff%02x%02x%02x"):format(r * 255, g * 255, b * 255)
 	end
 
 	function DrawTooltip(anchor_frame)
