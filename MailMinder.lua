@@ -211,14 +211,19 @@ do
 		for realm, character_info in pairs(db.characters) do
 			for character_name, data in pairs(character_info) do
 				if #data.mail_entries > 0 then
-					local class_color = data.class and CLASS_COLORS[data.class] or "cccccc"
-					local expiration_seconds = data.next_expiration - (now - data.last_update)
-					local days_left = expiration_seconds / SECONDS_PER_DAY
-
 					line = tooltip:AddLine()
 					tooltip:SetCell(line, 1, data.expanded and ICON_MINUS or ICON_PLUS)
-					tooltip:SetCell(line, 2, ("|cff%s%s|r"):format(class_color, character_name))
-					tooltip:SetCell(line, 3, ("%s%s|r"):format(DayColorCode(days_left), FormattedSeconds(expiration_seconds)))
+
+					local color_table = COLOR_TABLE[data.class]
+					local r, g, b = color_table.r, color_table.g, color_table.b
+					tooltip:SetCell(line, 2, character_name)
+					tooltip:SetCellTextColor(line, 2, r, g, b)
+
+					local expiration_seconds = data.next_expiration - (now - data.last_update)
+					local days_left = expiration_seconds / SECONDS_PER_DAY
+					tooltip:SetCell(line, 3, FormattedSeconds(expiration_seconds))
+					tooltip:SetCellTextColor(line, 3, PercentColorGradient(days_left, MAX_MAIL_DAYS));
+
 					tooltip:SetCell(line, 4, data.mail_count)
 					tooltip:SetCell(line, 5, data.auction_count)
 					tooltip:SetCellScript(line, 1, "OnMouseUp", ExpandButton_OnMouseUp, ("%s:%s"):format(realm, character_name))
