@@ -222,7 +222,7 @@ do
 					local expiration_seconds = data.next_expiration - (now - data.last_update)
 					local days_left = expiration_seconds / SECONDS_PER_DAY
 					tooltip:SetCell(line, 3, FormattedSeconds(expiration_seconds))
-					tooltip:SetCellTextColor(line, 3, PercentColorGradient(days_left, MAX_MAIL_DAYS));
+					tooltip:SetCellTextColor(line, 3, PercentColorGradient(days_left, MAX_MAIL_DAYS))
 
 					tooltip:SetCell(line, 4, data.mail_count)
 					tooltip:SetCell(line, 5, data.auction_count)
