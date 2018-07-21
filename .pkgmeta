@@ -1,10 +1,8 @@
 package-as: MailMinder
 
-enable-nolib-creation: yes
+enable-nolib-creation: no
 
 ignore:
-  - .pkgmeta
-  - .docmeta
   - Locale/devel-enUS.lua
 
 externals:

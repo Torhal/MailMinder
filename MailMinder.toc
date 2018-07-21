@@ -9,12 +9,7 @@
 ## OptionalDeps: Ace3, LibQTip-1.0, LibDBIcon-1.0
 ## SavedVariables: MailMinderDB
 
-## LoadManagers: AddonLoader
-## X-LoadOn-Always: Delayed
-
-#@no-lib-strip@
 embeds.xml
-#@end-no-lib-strip@
-
 locale.xml
+
 MailMinder.lua
