@@ -1,36 +1,36 @@
--------------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
 -- Localized Lua globals.
--------------------------------------------------------------------------------
-local _G = getfenv(0)
-
+-- ----------------------------------------------------------------------------
 local math = _G.math
-local string = _G.string
 local table = _G.table
 
 local pairs = _G.pairs
 
--------------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
 -- Addon namespace.
--------------------------------------------------------------------------------
-local ADDON_NAME, private = ...
+-- ----------------------------------------------------------------------------
+local AddOnFolderName, private = ...
 local LibStub = _G.LibStub
-local MailMinder = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceTimer-3.0")
+local MailMinder = LibStub("AceAddon-3.0"):NewAddon(AddOnFolderName, "AceEvent-3.0")
 
-local QTip = LibStub("LibQTip-1.0")
-local LDB = LibStub("LibDataBroker-1.1")
+local LibQTip = LibStub("LibQTip-1.0")
 local LDBIcon = LibStub("LibDBIcon-1.0")
-local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
+local L = LibStub("AceLocale-3.0"):GetLocale(AddOnFolderName)
 
-local ldb_object = LDB:NewDataObject(ADDON_NAME, {
-	type = "data source",
-	label = ADDON_NAME,
-	text = " ",
+-- ----------------------------------------------------------------------------
+-- Constants
+-- ----------------------------------------------------------------------------
+local DataObject = LibStub("LibDataBroker-1.1"):NewDataObject(AddOnFolderName, {
 	icon = [[Interface\MINIMAP\TRACKING\Mailbox]],
+	label = AddOnFolderName,
+	text = _G.NONE,
+	type = "data source",
 })
 
--------------------------------------------------------------------------------
--- Constants
--------------------------------------------------------------------------------
+local TitleFont = _G.CreateFont("MailMinderTitleFont")
+TitleFont:SetTextColor(1, 0.82, 0)
+TitleFont:SetFontObject("QuestTitleFont")
+
 local PLAYER_NAME = _G.UnitName("player")
 local REALM_NAME = _G.GetRealmName()
 local MAX_MAIL_DAYS = 30
@@ -38,11 +38,6 @@ local SECONDS_PER_DAY = 24 * 60 * 60
 local SECONDS_PER_HOUR = 60 * 60
 
 local COLOR_TABLE = _G.CUSTOM_CLASS_COLORS or _G.RAID_CLASS_COLORS
-local CLASS_COLORS = {}
-
-for k, v in pairs(COLOR_TABLE) do
-	CLASS_COLORS[k] = ("%2x%2x%2x"):format(v.r * 255, v.g * 255, v.b * 255)
-end
 
 local DB_DEFAULTS = {
 	global = {
@@ -68,18 +63,16 @@ local ICON_MINUS_DOWN = [[|TInterface\MINIMAP\UI-Minimap-ZoomOutButton-Down:16:1
 local ICON_PLUS = [[|TInterface\MINIMAP\UI-Minimap-ZoomInButton-Up:16:16|t]]
 local ICON_PLUS_DOWN = [[|TInterface\MINIMAP\UI-Minimap-ZoomInButton-Down:16:16|t]]
 
--------------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
 -- Variables.
--------------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
 local db
-local characters = {}
-local current_mail = {}
-local sorted_characters = {}
-local timers = {}
+local currentMail = {}
+local sortedCharacterNames = {}
 
--------------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
 -- Helper functions.
--------------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
 local function PercentColorGradient(min, max)
 	local red_low, green_low, blue_low = 1, 0.10, 0.10
 	local red_mid, green_mid, blue_mid = 1, 1, 0
@@ -91,40 +84,14 @@ local function PercentColorGradient(min, max)
 	elseif percentage <= 0 then
 		return red_low, green_low, blue_low
 	end
+
 	local integral, fractional = math.modf(percentage * 2)
 
 	if integral == 1 then
 		red_low, green_low, blue_low, red_mid, green_mid, blue_mid = red_mid, green_mid, blue_mid, red_high, green_high, blue_high
 	end
+
 	return red_low + (red_mid - red_low) * fractional, green_low + (green_mid - green_low) * fractional, blue_low + (blue_mid - blue_low) * fractional
-end
-
-local function UpdateIcon()
-	local now = _G.time()
-	local found_mail
-	local closest_time
-
-	for realm, character_info in pairs(db.characters) do
-		for character_name, character_data in pairs(character_info) do
-			if #character_data.mail_entries > 0 then
-				found_mail = true
-
-				local current_expiration = character_data.next_expiration - (now - character_data.last_update)
-
-				if not closest_time or current_expiration < closest_time then
-					closest_time = current_expiration
-				end
-			end
-		end
-	end
-
-	if found_mail then
-		ldb_object.iconR, ldb_object.iconG, ldb_object.iconB = PercentColorGradient(closest_time / SECONDS_PER_DAY, MAX_MAIL_DAYS)
-	else
-		ldb_object.iconR = nil
-		ldb_object.iconG = nil
-		ldb_object.iconB = nil
-	end
 end
 
 local function FormattedSeconds(seconds)
@@ -138,6 +105,7 @@ local function FormattedSeconds(seconds)
 		negative = "-"
 		seconds = -seconds
 	end
+
 	local L_DAY_ONELETTER_ABBR = _G.DAY_ONELETTER_ABBR:gsub("%s*%%d%s*", "")
 
 	if not seconds or seconds >= SECONDS_PER_DAY * 36500 then -- 100 years
@@ -149,221 +117,313 @@ local function FormattedSeconds(seconds)
 	end
 end
 
--------------------------------------------------------------------------------
--- LDB methods.
--------------------------------------------------------------------------------
+local function DayColorCode(daysLeft)
+	local r, g, b = PercentColorGradient(daysLeft, MAX_MAIL_DAYS)
+	return ("|cff%02x%02x%02x"):format(r * 255, g * 255, b * 255)
+end
+
+-- ----------------------------------------------------------------------------
+-- Tooltip functions.
+-- ----------------------------------------------------------------------------
 local DrawTooltip
 do
 	local NUM_TOOLTIP_COLUMNS = 7
-	local tooltip
+	local Tooltip
 	local LDB_anchor
 
 	local function Tooltip_OnRelease(self)
-		tooltip = nil
+		Tooltip = nil
 		LDB_anchor = nil
 	end
 
-	local function ExpandButton_OnMouseUp(tooltip_cell, realm_and_character)
-		local realm, character_name = (":"):split(realm_and_character, 2)
+	local function ExpandButton_OnMouseUp(tooltipCell, realmAndCharacterNames)
+		local realmName, characterName = (":"):split(realmAndCharacterNames, 2)
 
-		db.characters[realm][character_name].expanded = not db.characters[realm][character_name].expanded
+		db.characters[realmName][characterName].expanded = not db.characters[realmName][characterName].expanded
 		DrawTooltip(LDB_anchor)
 	end
 
-	local function ExpandButton_OnMouseDown(tooltip_cell, is_expanded)
-		local line, column = tooltip_cell:GetPosition()
-		tooltip:SetCell(line, column, is_expanded and ICON_MINUS_DOWN or ICON_PLUS_DOWN)
+	local function ExpandButton_OnMouseDown(tooltipCell, isExpanded)
+		local line, column = tooltipCell:GetPosition()
+		Tooltip:SetCell(line, column, isExpanded and ICON_MINUS_DOWN or ICON_PLUS_DOWN)
 	end
 
-	local function DayColorCode(days_left)
-		local r, g, b = PercentColorGradient(days_left, MAX_MAIL_DAYS)
-		return ("|cff%02x%02x%02x"):format(r * 255, g * 255, b * 255)
-	end
-
-	function DrawTooltip(anchor_frame)
-		if not anchor_frame then
+	function DrawTooltip(anchorFrame)
+		if not anchorFrame then
 			return
 		end
-		LDB_anchor = anchor_frame
 
-		if not tooltip then
-			tooltip = QTip:Acquire(ADDON_NAME .. "Tooltip", NUM_TOOLTIP_COLUMNS, "LEFT", "CENTER", "CENTER", "CENTER", "CENTER", "CENTER", "CENTER")
-			tooltip.OnRelease = Tooltip_OnRelease
-			tooltip:EnableMouse(true)
-			tooltip:SmartAnchorTo(anchor_frame)
-			tooltip:SetAutoHideDelay(db.tooltip.timer, anchor_frame)
-			tooltip:SetScale(db.tooltip.scale)
+		LDB_anchor = anchorFrame
+
+		if not Tooltip then
+			Tooltip = LibQTip:Acquire(AddOnFolderName .. "Tooltip", NUM_TOOLTIP_COLUMNS, "LEFT", "CENTER", "CENTER", "CENTER", "CENTER", "CENTER", "CENTER")
+			Tooltip:SetAutoHideDelay(db.tooltip.timer, anchorFrame)
+			Tooltip:SmartAnchorTo(anchorFrame)
+			Tooltip:SetBackdropColor(0.05, 0.05, 0.05, 1)
+			Tooltip:SetScale(db.tooltip.scale)
+
+			Tooltip.OnRelease = Tooltip_OnRelease
 		end
+
+		Tooltip:Clear()
+		Tooltip:SetCellMarginH(0)
+		Tooltip:SetCellMarginV(1)
+
+		Tooltip:SetCell(Tooltip:AddLine(), 1, AddOnFolderName, TitleFont, "CENTER", NUM_TOOLTIP_COLUMNS)
+		Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
+		Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
+
+		local line = Tooltip:AddLine(" ", _G.NAME, _G.CLOSES_IN, _G.MAIL_LABEL, _G.AUCTIONS)
+		Tooltip:SetLineColor(line, 0, 0, 0)
+
+		Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
+
 		local now = _G.time()
 
-		tooltip:Clear()
-		tooltip:SetCellMarginH(0)
-		tooltip:SetCellMarginV(1)
+		for realm, characterList in pairs(db.characters) do
+			for characterName, characterData in pairs(characterList) do
+				if #characterData.mailEntries > 0 then
+					line = Tooltip:AddLine()
+					Tooltip:SetCell(line, 1, characterData.expanded and ICON_MINUS or ICON_PLUS)
 
-		local line, column = tooltip:AddHeader()
-		tooltip:SetCell(line, 1, ADDON_NAME, "CENTER", NUM_TOOLTIP_COLUMNS)
-		tooltip:AddSeparator()
+					local colorTable = COLOR_TABLE[characterData.class]
+					local r, g, b = colorTable.r, colorTable.g, colorTable.b
+					Tooltip:SetCell(line, 2, characterName)
+					Tooltip:SetCellTextColor(line, 2, r, g, b)
 
-		line = tooltip:AddLine(" ", _G.NAME, _G.CLOSES_IN, _G.MAIL_LABEL, _G.AUCTIONS)
-		tooltip:SetLineColor(line, 1, 1, 1, 0.25)
-		tooltip:AddSeparator()
+					local lowestExpirationSeconds = characterData.nextExpirationSeconds - (now - characterData.lastUpdateSeconds)
+					local lowestDaysLeft = lowestExpirationSeconds / SECONDS_PER_DAY
+					Tooltip:SetCell(line, 3, FormattedSeconds(lowestExpirationSeconds))
+					Tooltip:SetCellTextColor(line, 3, PercentColorGradient(lowestDaysLeft, MAX_MAIL_DAYS))
 
-		for realm, character_info in pairs(db.characters) do
-			for character_name, data in pairs(character_info) do
-				if #data.mail_entries > 0 then
-					line = tooltip:AddLine()
-					tooltip:SetCell(line, 1, data.expanded and ICON_MINUS or ICON_PLUS)
+					Tooltip:SetCell(line, 4, characterData.mailCount)
+					Tooltip:SetCell(line, 5, characterData.auction_count)
+					Tooltip:SetCellScript(line, 1, "OnMouseUp", ExpandButton_OnMouseUp, ("%s:%s"):format(realm, characterName))
+					Tooltip:SetCellScript(line, 1, "OnMouseDown", ExpandButton_OnMouseDown, characterData.expanded)
 
-					local color_table = COLOR_TABLE[data.class]
-					local r, g, b = color_table.r, color_table.g, color_table.b
-					tooltip:SetCell(line, 2, character_name)
-					tooltip:SetCellTextColor(line, 2, r, g, b)
+					if characterData.expanded then
+						Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
 
-					local expiration_seconds = data.next_expiration - (now - data.last_update)
-					local days_left = expiration_seconds / SECONDS_PER_DAY
-					tooltip:SetCell(line, 3, FormattedSeconds(expiration_seconds))
-					tooltip:SetCellTextColor(line, 3, PercentColorGradient(days_left, MAX_MAIL_DAYS))
+						line = Tooltip:AddLine(" ")
+						Tooltip:SetLineColor(line, 0, 0, 0)
+						Tooltip:SetCell(line, 2, _G.MAIL_SUBJECT_LABEL, "CENTER", 4)
+						Tooltip:SetCell(line, 6, _G.FROM)
+						Tooltip:SetCell(line, 7, _G.CLOSES_IN)
 
-					tooltip:SetCell(line, 4, data.mail_count)
-					tooltip:SetCell(line, 5, data.auction_count)
-					tooltip:SetCellScript(line, 1, "OnMouseUp", ExpandButton_OnMouseUp, ("%s:%s"):format(realm, character_name))
-					tooltip:SetCellScript(line, 1, "OnMouseDown", ExpandButton_OnMouseDown, data.expanded)
+						Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
 
-					if data.expanded then
-						tooltip:AddSeparator()
-						line = tooltip:AddLine(" ")
-						tooltip:SetLineColor(line, 1, 1, 1, 0.25)
-						tooltip:SetCell(line, 2, _G.MAIL_SUBJECT_LABEL, "CENTER", 4)
-						tooltip:SetCell(line, 6, _G.FROM)
-						tooltip:SetCell(line, 7, _G.CLOSES_IN)
-						tooltip:AddSeparator()
+						for index = 1, #characterData.mailEntries do
+							local mailEntry = characterData.mailEntries[index]
+							local expirationSeconds = mailEntry.expirationSeconds - (now - characterData.lastUpdateSeconds)
+							local daysLeft = expirationSeconds / SECONDS_PER_DAY
 
-						for index = 1, #data.mail_entries do
-							local mail = data.mail_entries[index]
-							local expiration_seconds = mail.expiration_seconds - (now - data.last_update)
-							local days_left = expiration_seconds / SECONDS_PER_DAY
+							line = Tooltip:AddLine(" ")
+							Tooltip:SetCell(line, 2, ("|T%s:16:16|t %s%s|r"):format(mailEntry.packageIcon or mailEntry.stationaryIcon, _G.NORMAL_FONT_COLOR_CODE, mailEntry.subject), "LEFT", 4)
 
-							line = tooltip:AddLine(" ")
-							tooltip:SetCell(line, 2, ("|T%s:16:16|t %s%s|r"):format(mail.package_icon or mail.stationary_icon, _G.NORMAL_FONT_COLOR_CODE, mail.subject), "LEFT", 4)
-							tooltip:SetCell(line, 6, mail.sender_name)
-							tooltip:SetCell(line, 7, ("%s%s|r"):format(DayColorCode(days_left), FormattedSeconds(expiration_seconds)))
+							local senderName = mailEntry.senderName
+							local senderData = characterList[senderName]
+
+							Tooltip:SetCell(line, 6, senderName)
+
+							if senderData then
+								colorTable = COLOR_TABLE[senderData.class]
+								r, g, b = colorTable.r, colorTable.g, colorTable.b
+								Tooltip:SetCellTextColor(line, 6, r, g, b)
+							end
+
+							Tooltip:SetCell(line, 7, ("%s%s|r"):format(DayColorCode(daysLeft), FormattedSeconds(expirationSeconds)))
 						end
-						tooltip:AddSeparator()
+
+						Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
 					end
 				end
 			end
 		end
-		tooltip:Show()
-	end
 
-	function ldb_object:OnEnter()
-		DrawTooltip(self)
-	end
+		if _G.HasNewMail() then
+			local senderNames = { _G.GetLatestThreeSenders() }
 
-	function ldb_object:OnLeave()
-	end
+			Tooltip:AddLine(" ")
+			Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
 
-	function ldb_object:OnClick()
+			line = Tooltip:AddLine()
+			Tooltip:SetCell(line, 1, _G.HAVE_MAIL_FROM, "LEFT", NUM_TOOLTIP_COLUMNS)
+
+			for index = 1, #senderNames do
+				line = Tooltip:AddLine()
+				Tooltip:SetCell(line, 2, senderNames[index], "LEFT")
+				Tooltip:SetCellTextColor(line, 2, 0.510, 0.773, 1)
+			end
+
+			Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
+		end
+
+		Tooltip:Show()
 	end
 end -- do-block
 
--------------------------------------------------------------------------------
--- Events.
--------------------------------------------------------------------------------
-function MailMinder:MAIL_INBOX_UPDATE()
+local function UpdateInboxData()
 	if not _G.MailFrame:IsVisible() then
 		return
 	end
-	local auction_count = 0
-	local mail_count = _G.GetInboxNumItems()
-	local player_data = db.characters[REALM_NAME][PLAYER_NAME]
-	local remaining_days = 42
-	local sales_count = 0
 
-	table.wipe(player_data.mail_entries)
+	local auctionCount = 0
+	local inboxCount = _G.GetInboxNumItems()
+	local playerData = db.characters[REALM_NAME][PLAYER_NAME]
+	local remainingDays = 42
+	local salesCount = 0
 
-	for index = 1, mail_count do
-		local invoice_type = _G.GetInboxInvoiceInfo(index)
-		local package_icon, stationary_icon, sender_name, subject, _, _, days_left = _G.GetInboxHeaderInfo(index)
+	table.wipe(playerData.mailEntries)
 
-		if _G.type(days_left) ~= "number" then
+	for index = 1, inboxCount do
+		local invoiceType = _G.GetInboxInvoiceInfo(index)
+		local packageIcon, stationaryIcon, senderName, subject, _, _, daysLeft = _G.GetInboxHeaderInfo(index)
+
+		if _G.type(daysLeft) ~= "number" then
 			-- if its not a valid value, set to 42.
-			days_left = 42
+			daysLeft = 42
 		end
 
-		if invoice_type == "seller_temp_invoice" then
-			if (days_left + 31) < remaining_days then
-				remaining_days = days_left + 31
+		if invoiceType == "seller_temp_invoice" then
+			if (daysLeft + 31) < remainingDays then
+				remainingDays = daysLeft + 31
 			end
-			sales_count = sales_count + 1
-			auction_count = auction_count + 1
+
+			salesCount = salesCount + 1
+			auctionCount = auctionCount + 1
 		else
-			if days_left < remaining_days then
-				remaining_days = days_left
+			if daysLeft < remainingDays then
+				remainingDays = daysLeft
 			end
 
-			if invoice_type == "buyer" or invoice_type == "seller" or subject:match(L["Auction expired"]) then
-				auction_count = auction_count + 1
+			if invoiceType == "buyer" or invoiceType == "seller" or subject:match(L["Auction expired"]) then
+				auctionCount = auctionCount + 1
 			end
 		end
 
-		table.insert(player_data.mail_entries, {
-			expiration_seconds = math.floor(days_left * SECONDS_PER_DAY),
-			package_icon = package_icon,
-			sender_name = sender_name,
-			stationary_icon = stationary_icon,
+		table.insert(playerData.mailEntries, {
+			expirationSeconds = math.floor(daysLeft * SECONDS_PER_DAY),
+			packageIcon = packageIcon,
+			senderName = senderName,
+			stationaryIcon = stationaryIcon,
 			subject = subject,
 		})
 	end
-	player_data.last_update = _G.time()
-	player_data.mail_count = mail_count
-	player_data.sales_count = sales_count
-	player_data.auction_count = auction_count
-	player_data.next_expiration = math.floor(remaining_days * SECONDS_PER_DAY)
 
-	UpdateIcon()
+	playerData.lastUpdateSeconds = _G.time()
+	playerData.mailCount = inboxCount
+	playerData.sales_count = salesCount
+	playerData.auction_count = auctionCount
+	playerData.nextExpirationSeconds = math.floor(remainingDays * SECONDS_PER_DAY)
 end
 
+-- ----------------------------------------------------------------------------
+-- Events.
+-- ----------------------------------------------------------------------------
 function MailMinder:MAIL_SEND_SUCCESS()
-	if not current_mail.recipient then
+	if not currentMail.recipient then
 		return
 	end
-	local mail_expiration_seconds = math.floor((current_mail.is_cod and 4 or 31) * SECONDS_PER_DAY)
-	local now = _G.time()
-	local character_data = db.characters[REALM_NAME][current_mail.recipient]
 
-	local new_mail = {
-		expiration_seconds = mail_expiration_seconds,
-		sender_name = PLAYER_NAME,
-		stationary_icon = DEFAULT_STATIONARY,
-		subject = current_mail.subject,
+	local mailExpirationSeconds = math.floor((currentMail.is_cod and 4 or 31) * SECONDS_PER_DAY)
+	local now = _G.time()
+	local characterData = db.characters[REALM_NAME][currentMail.recipient]
+
+	local newMailEntry = {
+		expirationSeconds = mailExpirationSeconds,
+		senderName = PLAYER_NAME,
+		stationaryIcon = DEFAULT_STATIONARY,
+		subject = currentMail.subject,
 	}
 
-	if not character_data then
-		db.characters[REALM_NAME][current_mail.recipient] = {
-			next_expiration = mail_expiration_seconds,
-			last_update = now,
-			mail_count = 1,
-			mail_entries = {
-				new_mail
+	if not characterData then
+		db.characters[REALM_NAME][currentMail.recipient] = {
+			nextExpirationSeconds = mailExpirationSeconds,
+			lastUpdateSeconds = now,
+			mailCount = 1,
+			mailEntries = {
+				newMailEntry
 			}
 		}
 		return
 	end
 
-	if mail_expiration_seconds < math.floor(character_data.next_expiration) - (now - character_data.last_update) then
-		character_data.next_expiration = mail_expiration_seconds
-		character_data.last_update = now
+	if mailExpirationSeconds < math.floor(characterData.nextExpirationSeconds) - (now - characterData.lastUpdateSeconds) then
+		characterData.nextExpirationSeconds = mailExpirationSeconds
+		characterData.lastUpdateSeconds = now
 	end
-	table.insert(character_data.mail_entries, new_mail)
-	character_data.mail_count = character_data.mail_count + 1
+
+	table.insert(characterData.mailEntries, newMailEntry)
+	characterData.mailCount = characterData.mailCount + 1
 end
 
--------------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- DataObject methods.
+-- ----------------------------------------------------------------------------
+function DataObject:OnEnter()
+	DrawTooltip(self)
+end
+
+function DataObject:OnLeave()
+end
+
+function DataObject:OnClick()
+end
+
+function DataObject:Update(eventName)
+	local hasNewMail = _G.HasNewMail()
+	local now = _G.time()
+	local closestSeconds
+
+	for _, characterList in pairs(db.characters) do
+		for _, characterData in pairs(characterList) do
+			if #characterData.mailEntries > 0 then
+				local expirationSeconds = characterData.nextExpirationSeconds - (now - characterData.lastUpdateSeconds)
+
+				if not closestSeconds or expirationSeconds < closestSeconds then
+					closestSeconds = expirationSeconds
+				end
+			end
+		end
+	end
+
+	if closestSeconds then
+		self.text = ("%s%s|r"):format(DayColorCode(closestSeconds / SECONDS_PER_DAY), hasNewMail and _G.HAVE_MAIL or FormattedSeconds(closestSeconds))
+	else
+		self.text = hasNewMail and _G.HAVE_MAIL or _G.NONE
+	end
+end
+
+-- ----------------------------------------------------------------------------
 -- Framework.
--------------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+local CHARACTER_DATA_FIELD_MIGRATIONS = {
+	auction_count = "auctionCount",
+	last_update = "lastUpdateSeconds",
+	mail_count = "mailCount",
+	mail_entries = "mailEntries",
+	next_expiration = "nextExpirationSeconds",
+	sales_count = "salesCount",
+}
+
+local MAIL_DATA_FIELD_MIGRATIONS = {
+	expiration_seconds = "expirationSeconds",
+	package_icon = "packageIcon",
+	sender_name = "senderName",
+	stationary_icon = "stationaryIcon"
+}
+
+local function MigrateFieldNames(object, migrationTable)
+	for oldField, newField in pairs(migrationTable) do
+		if object[oldField] then
+			object[newField] = object[oldField]
+			object[object] = nil
+		end
+	end
+end
+
 function MailMinder:OnInitialize()
-	local temp_db = LibStub("AceDB-3.0"):New(ADDON_NAME .. "DB", DB_DEFAULTS)
+	local temp_db = LibStub("AceDB-3.0"):New(AddOnFolderName .. "DB", DB_DEFAULTS)
 	db = temp_db.global
 
 	if not db.characters[REALM_NAME] then
@@ -372,37 +432,57 @@ function MailMinder:OnInitialize()
 
 	if not db.characters[REALM_NAME][PLAYER_NAME] then
 		db.characters[REALM_NAME][PLAYER_NAME] = {
-			mail_entries = {}
+			mailEntries = {}
 		}
 	end
-	local player_data = db.characters[REALM_NAME][PLAYER_NAME]
-	local _, english_class = _G.UnitClass("player")
-	player_data.class = english_class
 
-	for realm_name, character_info in pairs(db.characters) do
-		for character_name, data in pairs(character_info) do
-			characters[character_name] = data
-			sorted_characters[#sorted_characters + 1] = character_name
+	local playerData = db.characters[REALM_NAME][PLAYER_NAME]
+	local _, english_class = _G.UnitClass("player")
+
+	playerData.class = english_class
+
+	for _, characterList in pairs(db.characters) do
+		for characterName, characterData in pairs(characterList) do
+			sortedCharacterNames[#sortedCharacterNames + 1] = characterName
+
+			-- Migrations
+			MigrateFieldNames(characterData, CHARACTER_DATA_FIELD_MIGRATIONS)
+
+			for index = 1, #characterData.mailEntries do
+				MigrateFieldNames(characterData.mailEntries[index], MAIL_DATA_FIELD_MIGRATIONS)
+			end
 		end
 	end
 end
 
+local function UpdateAll(eventName)
+	UpdateInboxData()
+	DataObject:Update(eventName .. "(UpdateAll)")
+end
+
 function MailMinder:OnEnable()
-	_G.hooksecurefunc("SendMail", function(recipient, subject, body)
+	_G.hooksecurefunc("SendMail", function(recipient, subject)
 		if not recipient or not db.characters[REALM_NAME][recipient] then
 			return
 		end
-		current_mail.recipient = recipient
-		current_mail.subject = subject
-		current_mail.is_cod = (_G.GetSendMailCOD() > 0) or nil
+
+		currentMail.recipient = recipient
+		currentMail.subject = subject
+		currentMail.is_cod = (_G.GetSendMailCOD() > 0) or nil
 	end)
 
 	if LDBIcon then
-		LDBIcon:Register(ADDON_NAME, ldb_object, db.datafeed.minimap_icon)
+		LDBIcon:Register(AddOnFolderName, DataObject, db.datafeed.minimap_icon)
 	end
-	UpdateIcon()
-	timers.icon_update = self:ScheduleRepeatingTimer(UpdateIcon, 60)
 
-	self:RegisterEvent("MAIL_INBOX_UPDATE")
+	LibStub("AceEvent-3.0"):Embed(DataObject)
+	DataObject:RegisterEvent("PLAYER_ENTERING_WORLD", "Update")
+	DataObject:RegisterEvent("UPDATE_PENDING_MAIL", "Update")
+
+	LibStub("AceTimer-3.0"):Embed(DataObject)
+	DataObject:ScheduleRepeatingTimer("Update", 60, "RepeatingUpdate")
+
+	self:RegisterEvent("MAIL_INBOX_UPDATE", UpdateAll)
+
 	self:RegisterEvent("MAIL_SEND_SUCCESS")
 end
