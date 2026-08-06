@@ -1,25 +1,20 @@
--- ----------------------------------------------------------------------------
--- Localized Lua globals.
--- ----------------------------------------------------------------------------
-local math = _G.math
-local table = _G.table
+--------------------------------------------------------------------------------
+---- AddOn Namespace
+--------------------------------------------------------------------------------
 
-local pairs = _G.pairs
-
--- ----------------------------------------------------------------------------
--- Addon namespace.
--- ----------------------------------------------------------------------------
 local AddOnFolderName, private = ...
 local LibStub = _G.LibStub
 local MailMinder = LibStub("AceAddon-3.0"):NewAddon(AddOnFolderName, "AceEvent-3.0")
 
 local LibQTip = LibStub("LibQTip-1.0")
+local QTip = LibStub("LibQTip-2.0")
 local LDBIcon = LibStub("LibDBIcon-1.0")
 local L = LibStub("AceLocale-3.0"):GetLocale(AddOnFolderName)
 
--- ----------------------------------------------------------------------------
--- Constants
--- ----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+---- Constants
+--------------------------------------------------------------------------------
+
 local DataObject = LibStub("LibDataBroker-1.1"):NewDataObject(AddOnFolderName, {
 	icon = [[Interface\MINIMAP\TRACKING\Mailbox]],
 	label = AddOnFolderName,
@@ -63,16 +58,18 @@ local ICON_MINUS_DOWN = [[|TInterface\MINIMAP\UI-Minimap-ZoomOutButton-Down:16:1
 local ICON_PLUS = [[|TInterface\MINIMAP\UI-Minimap-ZoomInButton-Up:16:16|t]]
 local ICON_PLUS_DOWN = [[|TInterface\MINIMAP\UI-Minimap-ZoomInButton-Down:16:16|t]]
 
--- ----------------------------------------------------------------------------
--- Variables.
--- ----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+---- Variables
+--------------------------------------------------------------------------------
+
 local db
 local currentMail = {}
 local sortedCharacterNames = {}
 
--- ----------------------------------------------------------------------------
--- Helper functions.
--- ----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+---- Helper Functions
+--------------------------------------------------------------------------------
+
 local function PercentColorGradient(min, max)
 	local red_low, green_low, blue_low = 1, 0.10, 0.10
 	local red_mid, green_mid, blue_mid = 1, 1, 0
@@ -122,9 +119,10 @@ local function DayColorCode(daysLeft)
 	return ("|cff%02x%02x%02x"):format(r * 255, g * 255, b * 255)
 end
 
--- ----------------------------------------------------------------------------
--- Tooltip functions.
--- ----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+---- Tooltip Functions
+--------------------------------------------------------------------------------
+
 local DrawTooltip
 do
 	local NUM_TOOLTIP_COLUMNS = 7
@@ -317,9 +315,10 @@ local function UpdateInboxData()
 	playerData.nextExpirationSeconds = math.floor(remainingDays * SECONDS_PER_DAY)
 end
 
--- ----------------------------------------------------------------------------
--- Events.
--- ----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+---- Events
+--------------------------------------------------------------------------------
+
 function MailMinder:MAIL_SEND_SUCCESS()
 	if not currentMail.recipient then
 		return
@@ -357,9 +356,10 @@ function MailMinder:MAIL_SEND_SUCCESS()
 	characterData.mailCount = characterData.mailCount + 1
 end
 
--- ----------------------------------------------------------------------------
--- DataObject methods.
--- ----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+---- DataObject Methods
+--------------------------------------------------------------------------------
+
 function DataObject:OnEnter()
 	DrawTooltip(self)
 end
@@ -394,9 +394,10 @@ function DataObject:Update(eventName)
 	end
 end
 
--- ----------------------------------------------------------------------------
--- Framework.
--- ----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+---- Framework
+--------------------------------------------------------------------------------
+
 local CHARACTER_DATA_FIELD_MIGRATIONS = {
 	auction_count = "auctionCount",
 	last_update = "lastUpdateSeconds",
