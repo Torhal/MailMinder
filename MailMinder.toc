@@ -8,6 +8,8 @@
 ## OptionalDeps: Ace3, LibQTip-1.0, LibDBIcon-1.0
 ## SavedVariables: MailMinderDB
 
+## X-Curse-Project-ID: 35808
+
 embeds.xml
 locale.xml
 
