@@ -9,6 +9,7 @@
 ## SavedVariables: MailMinderDB
 
 ## X-Curse-Project-ID: 35808
+## X-WoWI-ID: 20926
 
 embeds.xml
 locale.xml
