@@ -26,8 +26,9 @@ externals:
       url: svn://svn.curseforge.com/wow/ace3/mainline/trunk/AceAddon-3.0
     Libs/AceTimer-3.0:
       url: svn://svn.curseforge.com/wow/ace3/mainline/trunk/AceTimer-3.0
-    Libs/LibQTip-1.0:
-      url: https://repos.curseforge.com/wow/libqtip-1-0
+    Libs/LibQTip-2.0:
+        url: https://github.com/Torhal/LibQTip-2.0.git/LibQTip-2.0
+        curse-slug: libqtip-2-0
     Libs/LibDataBroker-1.1:
       url: git://git.curseforge.com/wow/libdatabroker-1-1/mainline.git
       tag: v1.1.4

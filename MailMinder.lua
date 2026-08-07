@@ -6,7 +6,6 @@ local AddOnFolderName, private = ...
 local LibStub = _G.LibStub
 local MailMinder = LibStub("AceAddon-3.0"):NewAddon(AddOnFolderName, "AceEvent-3.0")
 
-local LibQTip = LibStub("LibQTip-1.0")
 local QTip = LibStub("LibQTip-2.0")
 local LDBIcon = LibStub("LibDBIcon-1.0")
 local L = LibStub("AceLocale-3.0"):GetLocale(AddOnFolderName)
@@ -138,7 +137,7 @@ do
     local Tooltip
     local LDB_anchor
 
-    local function Tooltip_OnRelease(self)
+    function MailMinder:OnReleaseTooltip()
         Tooltip = nil
         LDB_anchor = nil
     end
@@ -150,9 +149,15 @@ do
         DrawTooltip(LDB_anchor)
     end
 
+    ---@param tooltipCell LibQTip-2.0.Cell
+    ---@param isExpanded boolean
     local function ExpandButton_OnMouseDown(tooltipCell, isExpanded)
-        local line, column = tooltipCell:GetPosition()
-        Tooltip:SetCell(line, column, isExpanded and ICON_MINUS_DOWN or ICON_PLUS_DOWN)
+        local rowIndex, columnIndex = tooltipCell:GetPosition()
+
+        tooltipCell.Tooltip
+            :GetRow(rowIndex)
+            :GetCell(columnIndex)
+            :SetText(isExpanded and ICON_MINUS_DOWN or ICON_PLUS_DOWN)
     end
 
     function DrawTooltip(anchorFrame)
@@ -163,7 +168,7 @@ do
         LDB_anchor = anchorFrame
 
         if not Tooltip then
-            Tooltip = LibQTip:Acquire(
+            Tooltip = QTip:AcquireTooltip(
                 AddOnFolderName .. "Tooltip",
                 NUM_TOOLTIP_COLUMNS,
                 "LEFT",
@@ -174,24 +179,24 @@ do
                 "CENTER",
                 "CENTER"
             )
-            Tooltip:SetAutoHideDelay(db.tooltip.timer, anchorFrame)
-            Tooltip:SmartAnchorTo(anchorFrame)
-            Tooltip:SetBackdropColor(0.05, 0.05, 0.05, 1)
-            Tooltip:SetScale(db.tooltip.scale)
 
-            Tooltip.OnRelease = Tooltip_OnRelease
+            Tooltip:SetBackdropColor(0.05, 0.05, 0.05, 1)
+
+            Tooltip:SmartAnchorTo(anchorFrame)
+                :SetAutoHideDelay(db.tooltip.timer, anchorFrame)
+                :SetScale(db.tooltip.scale)
+
+            QTip.RegisterCallback(MailMinder, "OnReleaseTooltip", "OnReleaseTooltip")
         end
 
-        Tooltip:Clear()
-        Tooltip:SetCellMarginH(0)
-        Tooltip:SetCellMarginV(1)
+        Tooltip:Clear():SetCellMarginH(2):SetCellMarginV(2)
 
-        Tooltip:SetCell(Tooltip:AddLine(), 1, AddOnFolderName, TitleFont, "CENTER", NUM_TOOLTIP_COLUMNS)
+        Tooltip:AddRow():GetCell(1):SetText(AddOnFolderName):SetJustifyH("CENTER"):SetColSpan(0)
+
         Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
         Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
 
-        local line = Tooltip:AddLine(" ", _G.NAME, _G.CLOSES_IN, _G.MAIL_LABEL, _G.AUCTIONS)
-        Tooltip:SetLineColor(line, 0, 0, 0)
+        Tooltip:AddRow(" ", NAME, CLOSES_IN, MAIL_LABEL, AUCTIONS):SetColor(0, 0, 0)
 
         Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
 
@@ -200,39 +205,37 @@ do
         for realm, characterList in pairs(db.characters) do
             for characterName, characterData in pairs(characterList) do
                 if #characterData.mailEntries > 0 then
-                    line = Tooltip:AddLine()
-                    Tooltip:SetCell(line, 1, characterData.expanded and ICON_MINUS or ICON_PLUS)
-
                     local colorTable = COLOR_TABLE[characterData.class]
                     local r, g, b = colorTable.r, colorTable.g, colorTable.b
-                    Tooltip:SetCell(line, 2, characterName)
-                    Tooltip:SetCellTextColor(line, 2, r, g, b)
-
                     local lowestExpirationSeconds = characterData.nextExpirationSeconds
                         - (now - characterData.lastUpdateSeconds)
                     local lowestDaysLeft = lowestExpirationSeconds / SECONDS_PER_DAY
-                    Tooltip:SetCell(line, 3, FormattedSeconds(lowestExpirationSeconds))
-                    Tooltip:SetCellTextColor(line, 3, PercentColorGradient(lowestDaysLeft, MAX_MAIL_DAYS))
 
-                    Tooltip:SetCell(line, 4, characterData.mailCount)
-                    Tooltip:SetCell(line, 5, characterData.auction_count)
-                    Tooltip:SetCellScript(
-                        line,
-                        1,
-                        "OnMouseUp",
-                        ExpandButton_OnMouseUp,
-                        ("%s:%s"):format(realm, characterName)
-                    )
-                    Tooltip:SetCellScript(line, 1, "OnMouseDown", ExpandButton_OnMouseDown, characterData.expanded)
+                    local row = Tooltip:AddRow()
+
+                    row:GetCell(1)
+                        :SetText(characterData.expanded and ICON_MINUS or ICON_PLUS)
+                        :SetScript("OnMouseUp", ExpandButton_OnMouseUp, ("%s:%s"):format(realm, characterName))
+                        :SetScript("OnMouseDown", ExpandButton_OnMouseDown, characterData.expanded)
+
+                    row:GetCell(2):SetText(characterName):SetTextColor(r, g, b)
+                    row:GetCell(3)
+                        :SetText(FormattedSeconds(lowestExpirationSeconds))
+                        :SetTextColor(PercentColorGradient(lowestDaysLeft, MAX_MAIL_DAYS))
+
+                    row:GetCell(4):SetText(characterData.mailCount)
+                    row:GetCell(5):SetText(characterData.auction_count)
 
                     if characterData.expanded then
                         Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
 
-                        line = Tooltip:AddLine(" ")
-                        Tooltip:SetLineColor(line, 0, 0, 0)
-                        Tooltip:SetCell(line, 2, _G.MAIL_SUBJECT_LABEL, "CENTER", 4)
-                        Tooltip:SetCell(line, 6, _G.FROM)
-                        Tooltip:SetCell(line, 7, _G.CLOSES_IN)
+                        row = Tooltip:AddRow(" ")
+
+                        row:SetColor(0, 0, 0)
+
+                        row:GetCell(1):SetText(MAIL_SUBJECT_LABEL):SetJustifyH("LEFT"):SetColSpan(5)
+                        row:GetCell(6):SetText(FROM)
+                        row:GetCell(7):SetText(CLOSES_IN)
 
                         Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
 
@@ -241,36 +244,31 @@ do
                             local expirationSeconds = mailEntry.expirationSeconds
                                 - (now - characterData.lastUpdateSeconds)
                             local daysLeft = expirationSeconds / SECONDS_PER_DAY
-
-                            line = Tooltip:AddLine(" ")
-                            Tooltip:SetCell(
-                                line,
-                                2,
-                                ("|T%s:16:16|t %s%s|r"):format(
-                                    mailEntry.packageIcon or mailEntry.stationaryIcon,
-                                    _G.NORMAL_FONT_COLOR_CODE,
-                                    mailEntry.subject
-                                ),
-                                "LEFT",
-                                4
-                            )
-
                             local senderName = mailEntry.senderName
                             local senderData = characterList[senderName]
 
-                            Tooltip:SetCell(line, 6, senderName)
+                            row = Tooltip:AddRow(" ")
+
+                            row:GetCell(1)
+                                :SetFormattedText(
+                                    "|T%s:16:16|t %s%s|r",
+                                    mailEntry.packageIcon or mailEntry.stationaryIcon,
+                                    NORMAL_FONT_COLOR_CODE,
+                                    mailEntry.subject
+                                )
+                                :SetJustifyH("LEFT")
+                                :SetColSpan(5)
+
+                            row:GetCell(6):SetText(senderName)
 
                             if senderData then
                                 colorTable = COLOR_TABLE[senderData.class]
-                                r, g, b = colorTable.r, colorTable.g, colorTable.b
-                                Tooltip:SetCellTextColor(line, 6, r, g, b)
+
+                                row:GetCell(6):SetTextColor(colorTable.r, colorTable.g, colorTable.b)
                             end
 
-                            Tooltip:SetCell(
-                                line,
-                                7,
-                                ("%s%s|r"):format(DayColorCode(daysLeft), FormattedSeconds(expirationSeconds))
-                            )
+                            row:GetCell(7)
+                                :SetFormattedText("%s%s|r", DayColorCode(daysLeft), FormattedSeconds(expirationSeconds))
                         end
 
                         Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
@@ -282,16 +280,18 @@ do
         if _G.HasNewMail() then
             local senderNames = { _G.GetLatestThreeSenders() }
 
-            Tooltip:AddLine(" ")
+            Tooltip:AddRow(" ")
             Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
 
-            line = Tooltip:AddLine()
-            Tooltip:SetCell(line, 1, _G.HAVE_MAIL_FROM, "LEFT", NUM_TOOLTIP_COLUMNS)
+            Tooltip:AddRow():GetCell(1):SetText(HAVE_MAIL_FROM):SetJustifyH("LEFT"):SetColSpan(0)
 
             for index = 1, #senderNames do
-                line = Tooltip:AddLine()
-                Tooltip:SetCell(line, 2, senderNames[index], "LEFT")
-                Tooltip:SetCellTextColor(line, 2, 0.510, 0.773, 1)
+                Tooltip:AddRow()
+                    :GetCell(1)
+                    :SetText(senderNames[index])
+                    :SetTextColor(0.510, 0.773, 1)
+                    :SetJustifyH("LEFT")
+                    :SetColSpan(0)
             end
 
             Tooltip:AddSeparator(1, 0.5, 0.5, 0.5)
