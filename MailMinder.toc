@@ -1,4 +1,4 @@
-## Interface: 120007
+## Interface: 120100
 ## Title: MailMinder
 ## Notes: Records mail when visiting the mailbox to make keeping track of mail and expiration dates easy.
 ## Author: Torhal
